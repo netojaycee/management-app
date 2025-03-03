@@ -1,0 +1,132 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL") // Replace with your PostgreSQL connection string
+}
+
+enum LoanStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ACTIVE
+  REPAID
+  LATE
+}
+
+enum KycStatus {
+  PENDING
+  VERIFIED
+  FAILED
+}
+
+model User {
+  id          String    @id @default(uuid()) // Use UUID as primary key
+  name        String
+  email       String    @unique
+  password    String
+  creditScore Int       @default(300) // Starts at 300, max 850
+  kycVerified Boolean   @default(false) // True if KYC is completed
+  kycStatus   KycStatus @default(PENDING)
+  kycDocument String? // Stores document ID after verification
+
+  lastLogin DateTime?
+
+  role         Role         @relation("UserRole", fields: [roleId], references: [id], map: "User_roleId_fkey")
+  roleId       String
+  permissions  Permission[] @relation("UserPermissions") // Many-to-many relation with Permission
+  department   Department   @relation("UserDepartment", fields: [departmentId], references: [id], map: "User_departmentId_fkey")
+  departmentId String // Foreign key to Department
+
+  loans     Loan[] @relation("LoanUser") // One-to-Many Relationship (User can have loans)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  Leave     Leave[]
+  Log       Log[]
+}
+
+model Loan {
+  id String @id @default(uuid())
+  user   User @relation("LoanUser", fields: [userId], references: [id], map: "Loan_userId_fkey") // Role must belong to a Department
+  userId String // Foreign key to Department
+
+  // userId String
+  // user   User   @relation(fields: [userId], references: [id])
+
+  amount         Float // Amount requested in NGN
+  approvedAmount Float // Amount approved in NGN
+  interestRate   Float // Interest rate (e.g., 0.1 for 10%)
+  totalPayable   Float // Total amount to repay (NGN)
+  currency       String @default("NGN") // Fixed to NGN
+
+  status      LoanStatus @default(PENDING)
+  requestedAt DateTime   @default(now())
+  dueDate     DateTime
+  paidAt      DateTime?
+  createdAt   DateTime   @default(now())
+}
+
+model Role {
+  id          String       @id @default(uuid()) // Use UUID as primary key
+  name        String       @unique
+  permissions Permission[] @relation("RolePermissions")
+
+  department   Department @relation("RoleDepartment", fields: [departmentId], references: [id], map: "Role_departmentId_fkey") // Role must belong to a Department
+  departmentId String // Foreign key to Department
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users     User[]   @relation("UserRole") // One-to-many relation with User
+}
+
+model Permission {
+  id          String  @id @default(uuid()) // Use UUID as primary key
+  name        String  @unique
+  description String? // Optional description for the permission
+
+  users      User[]       @relation("UserPermissions") // Many-to-many relation with User
+  roles      Role[]       @relation("RolePermissions") // Many-to-many relation with Role
+  department Department[] @relation("DepartmentPermissions") // Many-to-many relation with Role
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Department {
+  id          String       @id @default(uuid()) // Use UUID as primary key
+  name        String       @unique
+  permissions Permission[] @relation("DepartmentPermissions") // Permissions for the department
+
+  roles Role[] @relation("RoleDepartment") // One-to-many relation with Role
+  users User[] @relation("UserDepartment") // One-to-many relation with User
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Leave {
+  id        String   @id @default(uuid()) // Use UUID as primary key
+  userId    String
+  startDate DateTime
+  endDate   DateTime
+  status    String // e.g. "Pending", "HR Approved", "MD Approved", "Rejected"
+  reason    String?
+
+  user User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Log {
+  id      String  @id @default(uuid()) // Use UUID as primary key
+  userId  String
+  action  String
+  details String?
+
+  user User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+}

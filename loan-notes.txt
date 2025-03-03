@@ -1,0 +1,141 @@
+
+Credit Score Range	Rating	Effect on Loans
+300 - 399	Bad	Not eligible for loans 🚫
+400 - 599	Poor	Eligible for small loans (up to $500) 💵
+600 - 749	Good	Eligible for higher loans (up to $5,000) 🚀
+750 - 850	Excellent	Lowest interest rates & highest loan amounts 🏆
+
+
+
+4️⃣ What is totalPayable?
+totalPayable = Loan Amount + Interest
+
+Example	Loan Amount	Interest Rate	Total Payable
+User A (400 credit score)	$500	15% (high risk)	$575
+User B (750 credit score)	$2,000	8% (low risk)	$2,160
+User C (850 credit score)	$5,000	5% (best rate)	$5,250
+Formula:
+ts
+Copy
+Edit
+totalPayable = approvedAmount + (approvedAmount * interestRate);
+So, higher credit scores = lower total payable because the interest is lower.
+
+
+
+
+
+📌 List of APIs Needed for the Loan System
+We will implement all necessary APIs for user management, loan processing, repayments, and credit score updates.
+
+🔹 1. User Authentication & KYC
+✅ POST /api/auth/register → Register a new user
+✅ POST /api/auth/login → User login (JWT-based)
+✅ GET /api/user/profile → Fetch user details
+✅ POST /api/user/kyc → Verify KYC using IDAnalyzer
+
+🔹 2. Loan Request & Processing
+✅ POST /api/loan/request → User requests a loan (eligibility check)
+✅ POST /api/loan/approve → Approve a loan (admin or auto-approval)
+✅ POST /api/loan/disburse → Send loan to user’s bank account via Mono API
+✅ GET /api/loan/status → Fetch the current loan status
+
+🔹 3. Loan Repayment & Credit Score
+✅ POST /api/loan/repay → User repays loan (via Mono API)
+✅ POST /api/loan/update-score → Update credit score based on repayment status
+
+🔹 4. Loan Management & History
+✅ GET /api/loan/history → Fetch user’s past loans
+✅ GET /api/admin/loans → Admin fetches all loans (for monitoring)
+
+🔹 5. Automated Processes
+✅ GET /api/cron/check-loans → Runs a cron job to check overdue loans & update statuses
+✅ GET /api/cron/update-scores → Runs a cron job to update credit scores automatically
+
+
+
+
+1️⃣ Departments & Roles Assumption
+Department	Roles in Department
+Finance	Accountant, Loan Officer, Treasurer
+Human Resources (HR)	HR Manager, HR Assistant
+Operations	Operations Manager, Compliance Officer
+IT & Security	IT Administrator, Security Analyst
+Management (MD/CEO)	Managing Director, Executive Assistant
+
+
+
+Credit Score	Max Loan Amount	Interest	Repayment Period
+300 - 349	₦5,000 - ₦10,000	10%	14 days
+350 - 499	₦15,000 - ₦30,000	12%	30 days
+500 - 649	₦35,000 - ₦75,000	15%	60 days
+650 - 799	₦80,000 - ₦150,000	18%	90 days
+800 - 850	₦200,000+	20%	120 days
+
+
+
+
+
+
+
+
+### **🔹 Possible Missing Features in the Loan System**
+Here’s a list of additional features you might still need:
+
+#### **1️⃣ User & Loan Management**
+- ✅ **Loan Application History** (`GET /api/loan/history`) → Done
+- ✅ **Loan Cancellation Before Approval** (`DELETE /api/loan/cancel`) → Done
+- ✅ **Loan Approval System** (Admin-based or automated) → Done
+- ✅ **Credit Score Updates Based on Repayments** → Done
+- ✅ **Loan Limits Based on Credit Score** → Done
+
+#### **2️⃣ Repayment & Default Handling**
+- ✅ **Repayment Processing with Webhook** (`POST /api/loan/repay`) → Done
+- ✅ **Late Repayment Handling (-50 points penalty)** → **(Needs to be automated)**
+- ✅ **Loan Default Handling (-200 points penalty)** (`PATCH /api/loan/default-check`) → Done
+- 🛑 **Penalty Interest on Late Payments** (e.g., 2% extra for every late week)
+- 🛑 **Grace Period for Repayment** (e.g., 3 days before late fee applies)
+- 🛑 **Option for Partial Repayments** (If a user can’t pay full amount)
+
+#### **3️⃣ Notifications & User Communication**
+- ✅ **Email Notification on Loan Approval**
+- ✅ **Email/SMS Reminder Before Due Date**
+- ✅ **Email/SMS for Overdue Loans**
+- ✅ **Email Confirmation on Repayment**
+- 🛑 **SMS Notifications Using Twilio**
+- 🛑 **WhatsApp Notification for Reminders**
+
+#### **4️⃣ Loan Interest & Fees**
+- ✅ **Basic Interest Calculation**
+- 🛑 **Dynamic Interest Rates Based on User Risk** (Higher risk = Higher interest)
+- 🛑 **Late Fee System**
+- 🛑 **Processing Fee Deduction on Loan Approval** (e.g., 2% deducted upfront)
+
+#### **5️⃣ Fraud Prevention & Security**
+- ✅ **KYC Verification System** → Done
+- ✅ **Reject Fake or Expired IDs in KYC**
+- 🛑 **Blacklist System for Users Who Default Multiple Times**
+- 🛑 **Fraud Detection (e.g., flagging multiple loan requests within short period)**
+
+#### **6️⃣ Reporting & Analytics**
+- ✅ **Admin Dashboard for Loan Management**
+- 🛑 **User Dashboard to View Loan & Repayment History**
+- 🛑 **Credit Score Breakdown for Users (Explain why their score is low)**
+- 🛑 **Automated Loan Decision Logs (Why loan was approved or denied)**
+
+#### **7️⃣ Loan Payment Methods**
+- ✅ **Bank Transfer (Webhook Confirmation)**
+- 🛑 **Debit Card Auto-Debit (Deduct from user’s bank account)**
+- 🛑 **USSD Payment Option**
+- 🛑 **Wallet System (Users can deposit funds into wallet and repay from there)**
+
+#### **8️⃣ Miscellaneous Features**
+- 🛑 **Referral Program (Earn rewards for bringing new borrowers)**
+- 🛑 **In-App Support System for Loan Issues**
+- 🛑 **Loan Purpose Tracking (User selects reason for loan: Rent, Business, etc.)**
+- 🛑 **Scheduled Loan Auto-Debit (System deducts loan on due date automatically)**
+
+---
+
+### **🔹 Next Steps**
+Which of these features do you want to prioritize next? 🚀
