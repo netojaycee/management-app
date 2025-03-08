@@ -1,71 +1,56 @@
 import { prisma } from "@/lib/prisma";
-import { NextResponse } from "next/server";
-import { logAction } from "../logs/route"; // Log actions
-import { middleware } from "../../middlewares/handler"; // Central middleware handler
-import { jwtMiddleware } from "../../middlewares/jwtMiddleware"; // JWT middleware
+import { NextRequest, NextResponse } from "next/server";
+import { jwtMiddleware } from "@/app/api/middlewares/jwtMiddleware"; // Import JWT Middleware
+import { logAction } from "../../utils/logAction";
 
-// GET route (fetch all leave applications) - Public, no authentication required
-const getLeaves = async () => {
+// ✅ GET Route (Fetch all leave applications) - Public
+export async function GET() {
     try {
         const leaves = await prisma.leave.findMany({
             include: {
-                user: true, // Include user information (if needed)
+                user: true, // Include user information
             },
         });
 
         return NextResponse.json(leaves, { status: 200 });
     } catch (error) {
         console.error("Error fetching all leaves:", error);
-        return NextResponse.json({ error: "Failed to fetch leaves" }, { status: 500 });
+        return NextResponse.json({ error: `Failed to fetch leaves: ${error}` }, { status: 500 });
     }
-};
+}
 
-// POST route (create a new leave application) - Requires authentication
-const createLeave = async (req: Request) => {
-    const { startDate, endDate } = await req.json();
-    const { userId: authenticatedUserId } = req;
-
-    if (!authenticatedUserId || !startDate || !endDate) {
-        console.error("Missing required fields: authenticatedUserId, startDate, or endDate.");
-        return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+// ✅ POST Route (Create a new leave application) - Requires authentication
+export async function POST(req: NextRequest) {
+    // Apply JWT authentication middleware
+    const authResponse = await jwtMiddleware(req);
+    if (authResponse.status === 401 || authResponse.status === 403) {
+        return authResponse; // Return the corresponding error response
     }
 
     try {
+        const { startDate, endDate } = await req.json();
+        const userId = req.headers.get("x-user-id"); // Extract the authenticated user ID
+
+        if (!userId || !startDate || !endDate) {
+            return NextResponse.json({ error: "Missing required fields: startDate or endDate." }, { status: 400 });
+        }
+
         // Create the new leave application with a "Pending" status initially
         const leave = await prisma.leave.create({
             data: {
-                userId: authenticatedUserId,
+                userId,
                 startDate,
                 endDate,
-                status: "Pending", // Set status to "Pending" initially
+                status: "Pending", // Default status
             },
         });
 
-        // Ensure userId is available before logging
-        if (!authenticatedUserId) {
-            console.error("User ID is missing in the request.");
-            return new NextResponse(
-                JSON.stringify({ error: "Unauthorized - User ID missing" }),
-                { status: 401 }
-            );
-        }
-
-        // Log the action with the userId attached to the request
-        await logAction(authenticatedUserId, "Created a new leave application");
+        // Log the action with the authenticated user ID
+        await logAction(userId, "Created a new leave application");
 
         return NextResponse.json(leave, { status: 201 });
     } catch (error) {
         console.error("Error creating leave application:", error);
-        return NextResponse.json({ error: "Failed to create leave" }, { status: 500 });
+        return NextResponse.json({ error: `Failed to create leave: ${error}` }, { status: 500 });
     }
-};
-
-// Apply middlewares to the GET and POST routes
-
-// GET route (public, no authentication required)
-const getLeavesHandler = middleware(jwtMiddleware, getLeaves); // No middleware applied, open route
-
-// POST route (requires authentication)
-const createLeaveHandler = middleware(jwtMiddleware, createLeave); // Requires authentication
-
-export { getLeavesHandler as GET, createLeaveHandler as POST };
+}

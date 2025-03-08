@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-const handleLoanRepaymentWebhook = async (req: Request) => {
+// ✅ POST Route (Handle Loan Repayment Webhook)
+export async function POST(req: NextRequest) {
     try {
         const { transactionId, amount, reference, status } = await req.json();
 
@@ -12,7 +13,11 @@ const handleLoanRepaymentWebhook = async (req: Request) => {
         }
 
         // Extract user ID from reference
-        const userId = reference.split("_")[2];
+        const referenceParts = reference.split("_");
+        if (referenceParts.length < 3) {
+            return NextResponse.json({ error: "Invalid payment reference format" }, { status: 400 });
+        }
+        const userId = referenceParts[2];
 
         // Find active loan
         const loan = await prisma.loan.findFirst({
@@ -23,7 +28,7 @@ const handleLoanRepaymentWebhook = async (req: Request) => {
             return NextResponse.json({ error: "No active loan found for user" }, { status: 404 });
         }
 
-        // Check if the amount paid matches the loan amount
+        // Ensure the paid amount is equal to or greater than the total payable
         if (amount < loan.totalPayable) {
             return NextResponse.json({ error: "Insufficient payment amount" }, { status: 400 });
         }
@@ -37,21 +42,24 @@ const handleLoanRepaymentWebhook = async (req: Request) => {
             },
         });
 
-        // Update credit score (+50 for on-time, -50 for late)
+        // Calculate if the loan was paid late or on time
         const isLate = new Date() > new Date(loan.dueDate);
+        const creditScoreChange = isLate ? -50 : 50;
+
+        // Update user's credit score
         await prisma.user.update({
             where: { id: userId },
             data: {
-                creditScore: { increment: isLate ? -50 : 50 },
+                creditScore: { increment: creditScoreChange },
             },
         });
+
+        console.log(`✅ Loan repaid successfully. Credit Score ${isLate ? "decreased" : "increased"} by ${creditScoreChange}.`);
 
         return NextResponse.json({ message: "Loan successfully repaid" }, { status: 200 });
 
     } catch (error) {
         console.error("❌ Loan Repayment Webhook Error:", error);
-        return NextResponse.json({ error: "Failed to process repayment" }, { status: 500 });
+        return NextResponse.json({ error: `Failed to process repayment: ${error}` }, { status: 500 });
     }
-};
-
-export { handleLoanRepaymentWebhook as POST };
+}

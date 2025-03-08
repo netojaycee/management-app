@@ -1,10 +1,16 @@
+import { jwtMiddleware } from "@/app/api/middlewares/jwtMiddleware";
 import { prisma } from "@/lib/prisma";
-import { middleware, NextCustomMiddlewareType } from "@/app/api/middlewares/handler";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-// GET route (fetch a specific log by ID) - Public, no authentication required
-const getLog: NextCustomMiddlewareType = async (req, { params }) => {
-    const id = params?.id;
+// ✅ GET route (fetch a specific log by ID) - Requires authentication
+export async function GET(req: NextRequest, context: any) {
+    const id = (context.params as { id: string }).id; // Force type assertion
+    // Apply JWT authentication middleware
+    const authResponse = await jwtMiddleware(req);
+    if (authResponse.status === 401 || authResponse.status === 403) {
+        return authResponse; // Return the corresponding error response
+    }
+
 
     // Ensure the ID parameter is provided
     if (!id) {
@@ -21,21 +27,13 @@ const getLog: NextCustomMiddlewareType = async (req, { params }) => {
         });
 
         if (!log) {
-            console.error("Log not found with id:", id);
+            console.error("❌ Log not found with id:", id);
             return NextResponse.json({ error: "Log not found" }, { status: 404 });
         }
 
-        // Optionally log the access to the log information (unnecessary for public routes but can be included for audit)
-        // await logAction(userId, "Viewed log", `User viewed log with ID: ${id}`); 
-
         return NextResponse.json(log, { status: 200 });
     } catch (error) {
-        console.error("Error fetching log by id:", error);
-        return NextResponse.json({ error: "Failed to fetch log" }, { status: 500 });
+        console.error("❌ Error fetching log by ID:", error);
+        return NextResponse.json({ error: `Failed to fetch log: ${error}` }, { status: 500 });
     }
-};
-
-// Apply middleware (if authentication is required)
-const getLogHandler = middleware(getLog); // No middleware applied for open routes
-
-export { getLogHandler as GET };
+}

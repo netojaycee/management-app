@@ -1,127 +1,100 @@
-import { prisma } from '@/lib/prisma';
-import { NextResponse } from 'next/server';
-import { logAction } from "../../logs/route"; // Log actions
-import { middleware, NextCustomMiddlewareType } from '@/app/api/middlewares/handler';
-import { jwtMiddleware } from '@/app/api/middlewares/jwtMiddleware';
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { jwtMiddleware } from "@/app/api/middlewares/jwtMiddleware"; // Import middleware
+import { logAction } from "../../../utils/logAction";
 
+// ✅ GET Route (Public)
 
-// GET route (fetch a specific department by ID) - Public, no authentication required
-const getDepartment: NextCustomMiddlewareType = async (req, { params }) => {
-    const id = params?.id;
+export async function GET(req: NextRequest, context: any) {
+    const id = (context.params as { id: string }).id; // Force type assertion
 
     if (!id) {
         return NextResponse.json({ error: "ID parameter is required" }, { status: 400 });
     }
+
     try {
-        // Fetch a specific department by ID
         const department = await prisma.department.findUnique({
             where: { id },
-            include: {
-                permissions: true, // Including the permissions array with department
-            },
+            include: { permissions: true },
         });
 
         if (!department) {
-            console.error("Department not found with id:", id);
             return NextResponse.json({ error: "Department not found" }, { status: 404 });
         }
 
         return NextResponse.json(department, { status: 200 });
     } catch (error) {
         console.error("Error fetching department:", error);
-        return NextResponse.json({ error: "Failed to fetch department" }, { status: 500 });
+        return NextResponse.json({ error: `Failed to fetch department: ${error}` }, { status: 500 });
     }
-};
+}
 
-// PATCH route (update a specific department) - Requires authentication
-const updateDepartment: NextCustomMiddlewareType = async (req, { params }) => {
-    const id = params?.id;
-
-    if (!id) {
-        return NextResponse.json({ error: "ID parameter is required" }, { status: 400 });
+// ✅ PATCH Route (Protected)
+export async function PATCH(req: NextRequest, context: any) {
+    const id = (context.params as { id: string }).id; // Force type assertion
+    // Apply JWT authentication
+    const authResponse = await jwtMiddleware(req);
+    if (authResponse.status === 401 || authResponse.status === 403) {
+        return authResponse;
     }
+
     const { name, permissions } = await req.json();
-    const { userId } = req;
+    const userId = req.headers.get("x-user-id");
+
+    if (!id || !name || !permissions) {
+        return NextResponse.json({ error: "Missing required fields." }, { status: 400 });
+    }
+    if (!userId) {
+        return NextResponse.json({ error: "Unauthorized - User ID missing" }, { status: 401 });
+    }
 
     try {
-        if (!name || !permissions) {
-            console.error("Missing required fields: name or permissions.");
-            return NextResponse.json({ error: "Name and permissions are required." }, { status: 400 });
-        }
-
-        // Update the department
         const updatedDepartment = await prisma.department.update({
             where: { id },
-            data: {
-                name,
-                permissions: {
-                    set: permissions, // Set the new permissions (assuming it's an array of permission IDs)
-                },
-            },
-            include: {
-                permissions: true,
-            },
+            data: { name, permissions: { set: permissions } },
+            include: { permissions: true },
         });
 
-        // Ensure userId is available before logging
-        if (!userId) {
-            console.error("User ID is missing in the request.");
-            return new NextResponse(
-                JSON.stringify({ error: "Unauthorized - User ID missing" }),
-                { status: 401 }
-            );
-        }
-
-        // Log the update action
-        await logAction(userId, "Updated a department", `Department ${name} updated`);
+        // Log the action
+        await logAction(userId, `Updated Department: ${name}`);
 
         return NextResponse.json(updatedDepartment, { status: 200 });
     } catch (error) {
         console.error("Error updating department:", error);
-        return NextResponse.json({ error: "Failed to update department" }, { status: 500 });
+        return NextResponse.json({ error: `Failed to update department: ${error}` }, { status: 500 });
     }
-};
+}
 
-// DELETE route (delete a specific department) - Requires authentication
-const deleteDepartment: NextCustomMiddlewareType = async (req, { params }) => {
-    const id = params?.id;
+// ✅ DELETE Route (Protected)
+export async function DELETE(req: NextRequest, context: any) {
+    const id = (context.params as { id: string }).id; // Force type assertion
+
+    if (!id) {
+        return NextResponse.json({ error: "ID parameter is required" }, { status: 400 });
+    }    // Apply JWT authentication
+    const authResponse = await jwtMiddleware(req);
+    if (authResponse.status === 401 || authResponse.status === 403) {
+        return authResponse;
+    }
+
+    const userId = req.headers.get("x-user-id");
 
     if (!id) {
         return NextResponse.json({ error: "ID parameter is required" }, { status: 400 });
     }
-    const { userId } = req;
+    if (!userId) {
+        return NextResponse.json({ error: "Unauthorized - User ID missing" }, { status: 401 });
+    }
 
     try {
         await prisma.department.delete({ where: { id } });
 
-        // Ensure userId is available before logging
-        if (!userId) {
-            console.error("User ID is missing in the request.");
-            return new NextResponse(
-                JSON.stringify({ error: "Unauthorized - User ID missing" }),
-                { status: 401 }
-            );
-        }
+        // Log the action
+        await logAction(userId, `Deleted Department with ID: ${id}`);
 
-        // Log the delete action
-        await logAction(userId, "Deleted a department", `Department with ID ${id} deleted`);
-
-        return NextResponse.json({ message: "deleted successfully " }, { status: 204 }) // No content
+        return NextResponse.json({ message: "Department deleted successfully" }, { status: 204 });
     } catch (error) {
         console.error("Error deleting department:", error);
-        return NextResponse.json({ error: "Failed to delete department" }, { status: 500 });
+        return NextResponse.json({ error: `Failed to delete department: ${error}` }, { status: 500 });
     }
-};
-
-// Apply middlewares to the GET, PATCH, and DELETE routes
-
-// GET route (public, no authentication required)
-const getDepartmentHandler = middleware(getDepartment); // No middleware applied, open route
-
-// PATCH route (requires authentication)
-const updateDepartmentHandler = middleware(jwtMiddleware, updateDepartment); // Requires authentication
-
-// DELETE route (requires authentication)
-const deleteDepartmentHandler = middleware(jwtMiddleware, deleteDepartment); // Requires authentication
-
-export { getDepartmentHandler as GET, updateDepartmentHandler as PATCH, deleteDepartmentHandler as DELETE };
+}

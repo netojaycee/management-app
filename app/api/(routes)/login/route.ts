@@ -1,16 +1,20 @@
 import bcrypt from "bcryptjs";
 import { generateToken } from "@/app/api/utils/jwtService";
 import { prisma } from "@/lib/prisma";
-import { NextResponse } from "next/server";
-import { middleware } from "../../middlewares/handler";
+import { NextRequest, NextResponse } from "next/server";
+import { logAction } from "../../utils/logAction";
 
-
-const login = async (req: Request) => {
+// ✅ Login Handler
+export async function POST(req: NextRequest) {
     try {
-        // Parse the JSON body
+        // Parse JSON request body
         const { email, password } = await req.json();
 
-        // Check if the user exists
+        if (!email || !password) {
+            return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
+        }
+
+        // ✅ Check if the user exists
         const user = await prisma.user.findUnique({
             where: { email },
         });
@@ -19,33 +23,29 @@ const login = async (req: Request) => {
             return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
         }
 
-        // Check if the password matches
+        // ✅ Compare passwords
         const passwordMatch = await bcrypt.compare(password, user.password);
         if (!passwordMatch) {
             return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
         }
 
+        // ✅ Update last login timestamp
         await prisma.user.update({
             where: { id: user.id },
             data: { lastLogin: new Date() },
         });
 
-        // Generate JWT token
+        // ✅ Generate JWT token
         const token = generateToken(user.id);
 
-        // Send the token in the response
-        return NextResponse.json({ message: "Login Successful", token: token }, { status: 200 });
-    }
-    catch (error) {
-        console.log(error, "Server Error")
-        return NextResponse.json({ error: "Server Error" }, { status: 500 });
-    }
+        // ✅ Log user login action
+        await logAction(user.id, "User Logged In", `User ${user.email} logged in`);
 
+        // ✅ Return response with token
+        return NextResponse.json({ message: "Login Successful", token }, { status: 200 });
 
+    } catch (error) {
+        console.error("❌ Server Error during login:", error);
+        return NextResponse.json({ error: `Server Error: ${error}` }, { status: 500 });
+    }
 }
-
-
-
-const loginHandler = middleware(login); // Requires authentication
-
-export { loginHandler as POST };

@@ -1,34 +1,39 @@
+import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "../utils/jwtService";
-import { JwtPayload } from "jsonwebtoken";
-import { NextCustomMiddlewareType } from "./handler";
+import { JwtPayload, TokenExpiredError, JsonWebTokenError } from "jsonwebtoken";
 
-export const jwtMiddleware: NextCustomMiddlewareType = async (
-    req: Request,
-    _context: { params?: { [key: string]: string } } = {},
-    options?: { next?: () => void }
-) => {
+export async function jwtMiddleware(req: NextRequest) {
     const authHeader = req.headers.get("authorization");
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        return new Response(
-            JSON.stringify({
-                error: "Authentication token missing or invalid",
-                success: false,
-            }),
+        return NextResponse.json(
+            { error: "Authentication token missing or invalid", success: false },
             { status: 401 }
         );
     }
 
     const token = authHeader.split(" ")[1];
+
     try {
         const decoded = verifyToken(token) as JwtPayload; // Verify and decode the token
-        (req as any).userId = decoded.userId; // Attach decoded user info to the request
-        options?.next?.(); // Proceed to the next middleware
+
+        if (!decoded || !decoded.userId) {
+            return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+        }
+
+        // Clone the request and attach userId to it (Next.js requests are immutable)
+        req.headers.set("x-user-id", decoded.userId);
+
+        return NextResponse.next(); // Allow the request to proceed
     } catch (error) {
-        console.error(error);
-        return new Response(
-            JSON.stringify({ error: "Invalid or expired token" }),
-            { status: 401 }
-        );
+        console.error("JWT Middleware Error:", error);
+
+        if (error instanceof TokenExpiredError) {
+            return NextResponse.json({ error: "Token expired" }, { status: 403 });
+        } else if (error instanceof JsonWebTokenError) {
+            return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+        }
+
+        return NextResponse.json({ error: "Authentication error" }, { status: 500 });
     }
-};
+}

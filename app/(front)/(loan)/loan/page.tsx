@@ -1,3 +1,4 @@
+
 "use client";
 import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -90,7 +91,13 @@ export default function LoanDashboard() {
   // ✅ Collect all error messages for debugging/logging
   const errorMessages = [errorRequest, errorApprove, errorRepay, errorHistory]
     .filter(Boolean) // Remove undefined values
-    .map((err) => err?.data?.message || err?.error || "Unknown error"); // Extract error messages
+    .map((err) =>
+      err && "data" in err && err.data && typeof err.data === "object"
+        ? (err.data as { message?: string })?.message || "Unknown error"
+        : err && "error" in err
+        ? err.error
+        : "Unknown error"
+    );
 
   // ✅ Unified success state (if any request was successful)
   const isSuccess = isSuccessRequest || isSuccessApprove || isSuccessRepay;
@@ -104,9 +111,9 @@ export default function LoanDashboard() {
   useEffect(() => {
     if (loanHistory?.loans) {
       const pending = loanHistory.loans.find(
-        (loan) => loan.status === "PENDING"
+        (loan: any) => loan.status === "PENDING"
       );
-      const active = loanHistory.loans.find((loan) => loan.status === "ACTIVE");
+      const active = loanHistory.loans.find((loan: any) => loan.status === "ACTIVE");
 
       setPendingLoan(pending || null);
       setActiveLoan(active || null);
@@ -289,7 +296,7 @@ export default function LoanDashboard() {
             </TableHeader>
             <TableBody>
               {loanHistory &&
-                loanHistory?.loans?.map((loan) => (
+                loanHistory?.loans?.map((loan: any) => (
                   <TableRow key={loan.id}>
                     <TableCell>₦{loan.amount.toLocaleString()}</TableCell>
                     <TableCell>

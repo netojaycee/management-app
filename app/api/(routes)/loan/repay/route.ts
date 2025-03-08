@@ -1,9 +1,8 @@
 import { prisma } from "@/lib/prisma";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { jwtMiddleware } from "@/app/api/middlewares/jwtMiddleware";
-import { middleware } from "@/app/api/middlewares/handler";
 
-// Mock Mono API function to get virtual account for loan repayment
+// ✅ Mock Mono API function to get virtual account for loan repayment
 async function getVirtualAccount(userId: string) {
     return {
         bankName: "Mono Bank",
@@ -13,9 +12,20 @@ async function getVirtualAccount(userId: string) {
     };
 }
 
-const getRepaymentDetails = async (req: Request) => {
+// ✅ POST Route (Get Loan Repayment Details) - Requires authentication
+export async function POST(req: NextRequest) {
+    // Apply JWT authentication middleware
+    const authResponse = await jwtMiddleware(req);
+    if (authResponse.status === 401 || authResponse.status === 403) {
+        return authResponse; // Return authentication error if unauthorized
+    }
+
     try {
-        const { userId } = req as any;
+        const userId = req.headers.get("x-user-id"); // Extract authenticated user ID
+
+        if (!userId) {
+            return NextResponse.json({ error: "Unauthorized - User ID missing" }, { status: 401 });
+        }
 
         // Get user's active loan
         const loan = await prisma.loan.findFirst({
@@ -41,10 +51,6 @@ const getRepaymentDetails = async (req: Request) => {
 
     } catch (error) {
         console.error("❌ Error fetching repayment details:", error);
-        return NextResponse.json({ error: "Failed to fetch repayment details" }, { status: 500 });
+        return NextResponse.json({ error: `Failed to fetch repayment details: ${error}` }, { status: 500 });
     }
-};
-
-// Apply Authentication Middleware
-const getRepaymentDetailsHandler = middleware(jwtMiddleware, getRepaymentDetails);
-export { getRepaymentDetailsHandler as POST };
+}

@@ -1,4 +1,4 @@
-import jwt, { JwtPayload } from "jsonwebtoken";
+import jwt, { JsonWebTokenError, TokenExpiredError } from "jsonwebtoken";
 
 const SECRET_KEY = process.env.JWT_SECRET_KEY || "employee"; // Store this securely
 
@@ -8,42 +8,20 @@ export const generateToken = (userId: string) => {
 
 export const verifyToken = (token: string) => {
     try {
-        console.log("token", token)
+        console.log("🔐 Verifying token:", token);
         return jwt.verify(token, SECRET_KEY);
     } catch (error) {
-        console.log("verification error", error)
-        return null;
+        if (error instanceof TokenExpiredError) {
+            console.error("❌ Token expired:", error.message);
+            return { error: "Token expired" };
+        } else if (error instanceof JsonWebTokenError) {
+            console.error("❌ Invalid token:", error.message);
+            return { error: "Invalid token" };
+        } else {
+            console.error("❌ Token verification error:", error);
+            return { error: "Authentication failed" };
+        }
     }
 };
 
 
-export const extractUserIdFromRequest = (headers: Record<string, string>) => {
-    const token = headers?.Authorization?.split(" ")[1]; // Extract token from "Bearer <token>"
-
-    if (!token) {
-        throw new Error("No token provided");
-    }
-
-    const decoded = verifyToken(token) as JwtPayload; // Verify token
-
-    if (!decoded) {
-        throw new Error("Invalid or expired token");
-    }
-
-    return decoded.userId; // Return the userId from the decoded token
-};
-
-
-// export const protectRoute = (req: Request) => {
-//     try {
-//         const userId = extractUserIdFromRequest(req.headers);
-
-//         // You can add additional checks like checking if the user exists in the database.
-//         // If the user is authenticated, continue the request
-//         return NextResponse.next();
-//     } catch (error) {
-//         console.error(error);
-//         // If the token is invalid or missing, block the request
-//         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-//     }
-// };
