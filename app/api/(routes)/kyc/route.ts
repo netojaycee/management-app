@@ -154,7 +154,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { jwtMiddleware } from "@/app/api/middlewares/jwtMiddleware";
-import { KycStatus } from "@prisma/client";
 import https from "https";
 
 // ✅ IDAnalyzer API Credentials
@@ -252,7 +251,7 @@ export async function POST(req: NextRequest) {
                 where: { id: userId },
                 data: {
                     kycVerified: true,
-                    kycStatus: KycStatus.VERIFIED,
+                    kycStatus: "VERIFIED",
                     kycDocument: transactionId || "No ID found",
                 },
             });
@@ -272,7 +271,7 @@ export async function POST(req: NextRequest) {
                 where: { id: userId },
                 data: {
                     kycVerified: false,
-                    kycStatus: KycStatus.FAILED,
+                    kycStatus: "FAILED",
                     kycDocument: transactionId || "No ID found",
                 },
             });
@@ -286,21 +285,23 @@ export async function POST(req: NextRequest) {
                 { status: 400 }
             );
         }
-        // else if (decision === "review") {
-        //     await prisma.user.update({
-        //         where: { id: userId },
-        //         data: {
-        //             kycVerified: false,
-        //             kycStatus: KycStatus.PENDING,
-        //             kycDocument: transactionId || "No ID found",
-        //         },
-        //     });
+        else if (decision === "review") {
+            await prisma.user.update({
+                where: { id: userId },
+                data: {
+                    kycVerified: false,
+                    kycStatus: "FAILED",
+                    kycDocument: transactionId || "No ID found",
+                },
+            });
 
-        //     return NextResponse.json({
-        //         message: "⚠️ KYC verification requires manual review. Please wait for an update.",
-        //         status: "PENDING",
-        //     }, { status: 202 });
-        //         }
+            return NextResponse.json({
+                // message: "⚠️ KYC verification requires manual review. Please wait for an update.",
+                message: "⚠️ KYC verification Failed.",
+
+                status: "FAILED",
+            }, { status: 202 });
+        }
 
         return NextResponse.json(
             { error: "Unexpected response from IDAnalyzer.", status: "FAILED" },
